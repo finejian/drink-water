@@ -19,7 +19,7 @@ const (
 var Mode = kingpin.Flag("mode", "run mode of dw. 995(default)/odd/even").Default(Mode995).Short('m').String()
 
 const (
-	perHour    = "0 50 9-21 * * *"
+	perHour    = "0 30 9-21 * * *"
 	perDay0840 = "0 40 8 * * *"
 	perDay0900 = "0 0 9 * * *"
 	perDay1200 = "0 59 11 * * *"
@@ -159,10 +159,19 @@ func PostPerHour() {
 		return
 	}
 
-	// 午休，12~14不提醒
-	todayMiddleStart := now.BeginningOfDay().Add(time.Hour * 12)
-	todayMiddleEnd := now.BeginningOfDay().Add(time.Hour * 14)
-	if todayNow.Before(todayMiddleEnd) && todayNow.After(todayMiddleStart) {
+	// 午餐不提醒
+	todayLunchStart := now.BeginningOfDay().Add(time.Hour * 12)
+	todayLunchEnd := now.BeginningOfDay().Add(time.Hour * 14)
+	if todayNow.Before(todayLunchEnd) && todayNow.After(todayLunchStart) {
 		return
 	}
+
+	// 晚餐不提醒
+	todayDinnerStart := now.BeginningOfDay().Add(time.Hour * 18)
+	todayDinnerEnd := now.BeginningOfDay().Add(time.Hour * 19)
+	if *Mode == Mode995 && todayNow.Before(todayDinnerEnd) && todayNow.After(todayDinnerStart) {
+		return
+	}
+
+	PostDrink()
 }
