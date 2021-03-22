@@ -9,23 +9,20 @@ import (
 )
 
 const (
-	Mode995      = "995"
-	ModeOddWeek  = "odd"  // 单周大
-	ModeEvenWeek = "even" // 双周大
-
+	Mode995  = "995"
+	ModeWeek = "week" // 大小周
 )
 
-// 不支持热切换，重启后生效
-var Mode = kingpin.Flag("mode", "run mode of dw. 995(default)/odd/even").Default(Mode995).Short('m').String()
+var Mode = kingpin.Flag("mode", "run mode of dw. week(default)/995").Default(ModeWeek).Short('m').String()
+var FirstBigWeekDay = kingpin.Flag("bigWeekDay", "first big week, before today, eg: 2021-03-01").Default("2021-03-01").Short('b').String()
 
 const (
-	perHour    = "0 30 9-21 * * *"
-	perDay0840 = "0 40 8 * * *"
-	perDay0900 = "0 0 9 * * *"
+	perHour    = "0 29 9-19 * * *"
+	perDay0855 = "0 55 8 * * *"
 	perDay1200 = "0 59 11 * * *"
-	perDay1800 = "0 59 17 * * *"
-	perDay1900 = "0 59 18 * * *"
-	perDay2100 = "0 59 20 * * *"
+	perDay1800 = "0 0 18 * * *"
+	perDay1901 = "0 1 19 * * *"
+	perDay2100 = "0 0 21 * * *"
 )
 
 var c *cron.Cron
@@ -38,13 +35,9 @@ func main() {
 		if err := Run995(); err != nil {
 			panic("run 995 err: " + err.Error())
 		}
-	case ModeOddWeek:
-		if err := RunOddWeek(); err != nil {
-			panic("run odd week err: " + err.Error())
-		}
-	case ModeEvenWeek:
-		if err := RunEvenWeek(); err != nil {
-			panic("run even week err: " + err.Error())
+	case ModeWeek:
+		if err := RunWeek(); err != nil {
+			panic("run week err: " + err.Error())
 		}
 	default:
 		panic("unknown mode")
@@ -68,7 +61,7 @@ func Run995() error {
 	if err := AddCron(perDay1800, WorkDay995, PostEat); err != nil {
 		return err
 	}
-	if err := AddCron(perDay0840, WorkDay995, PostOn); err != nil {
+	if err := AddCron(perDay0855, WorkDay995, PostOn); err != nil {
 		return err
 	}
 	if err := AddCron(perDay2100, WorkDay995, PostOff); err != nil {
@@ -81,48 +74,24 @@ func Run995() error {
 }
 
 /*
-单周工作日：
+大小周工作日：
 9:00 上班打卡
 12:00 午饭
 19:00 下班打卡
 每1小时提醒喝水1次
 每逢单周时周六上班
 */
-func RunOddWeek() error {
-	if err := AddCron(perDay1200, WorkDayOddWeek, PostEat); err != nil {
+func RunWeek() error {
+	if err := AddCron(perDay1200, WorkDayWeek, PostEat); err != nil {
 		return err
 	}
-	if err := AddCron(perDay0900, WorkDayOddWeek, PostOn); err != nil {
+	if err := AddCron(perDay0855, WorkDayWeek, PostOn); err != nil {
 		return err
 	}
-	if err := AddCron(perDay1900, WorkDayOddWeek, PostOff); err != nil {
+	if err := AddCron(perDay1901, WorkDayWeek, PostOff); err != nil {
 		return err
 	}
-	if err := AddCron(perHour, WorkDayOddWeek, PostDrink); err != nil {
-		return err
-	}
-	return nil
-}
-
-/*
-双周工作日：
-9:00 上班打卡
-12:00 午饭
-19:00 下班打卡
-每1小时提醒喝水1次
-每逢双周时周六上班
-*/
-func RunEvenWeek() error {
-	if err := AddCron(perDay1200, WorkDayEvenWeek, PostEat); err != nil {
-		return err
-	}
-	if err := AddCron(perDay0900, WorkDayEvenWeek, PostOn); err != nil {
-		return err
-	}
-	if err := AddCron(perDay1900, WorkDayEvenWeek, PostOff); err != nil {
-		return err
-	}
-	if err := AddCron(perHour, WorkDayEvenWeek, PostDrink); err != nil {
+	if err := AddCron(perHour, WorkDayWeek, PostDrink); err != nil {
 		return err
 	}
 	return nil
@@ -151,7 +120,7 @@ func PostPerHour() {
 	switch *Mode {
 	case Mode995:
 		todayEnd = now.BeginningOfDay().Add(time.Hour * 21)
-	case ModeOddWeek, ModeEvenWeek:
+	case ModeWeek:
 		todayEnd = now.BeginningOfDay().Add(time.Hour * 19)
 	}
 	// 上班前，下班后提醒

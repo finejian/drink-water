@@ -21,29 +21,23 @@ func WorkDay995() bool {
 	return workDay
 }
 
-func WorkDayOddWeek() bool {
+func WorkDayWeek() bool {
 	refreshToday()
-	odd := WeekByYear()%2 == 1
-	// 单周，且今天是周六
-	if odd && today.Weekday() == time.Saturday {
+
+	now.WeekStartDay = time.Monday
+	// 第一个大周的第一天
+	firstBigWeekDay, _ := time.ParseInLocation("2006-01-02", *FirstBigWeekDay, time.Now().Location())
+	firstBigWeekDay = now.New(firstBigWeekDay).BeginningOfWeek()
+
+	today = time.Now()
+	// 距离第一个大周的第一天的天数
+	days := int(today.Sub(firstBigWeekDay).Hours() / 24)
+	isSmall := days/7%2 == 1
+	// 当前是小周，且今天是周六
+	if isSmall && today.Weekday() == time.Saturday {
 		workDay = true
 	}
 	return workDay
-}
-
-func WorkDayEvenWeek() bool {
-	refreshToday()
-	even := WeekByYear()%2 == 0
-	// 单周，且今天是周六
-	if even && today.Weekday() == time.Saturday {
-		workDay = true
-	}
-	return true
-}
-
-func WeekByYear() int {
-	offset := int(now.BeginningOfYear().Weekday()) - 1
-	return (time.Now().YearDay()+offset)/7 + 1
 }
 
 func refreshToday() {
