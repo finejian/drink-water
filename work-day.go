@@ -1,82 +1,75 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"io/ioutil"
+	"log"
+	"os"
 	"time"
 
-	"github.com/tidwall/gjson"
-
-	"github.com/astaxie/beego/httplib"
 	"github.com/jinzhu/now"
-	"github.com/pkg/errors"
 )
+
+type Day struct {
+	DayStr  string
+	Weekday time.Weekday
+	Workday bool
+}
+
+var DayFilename string
+var DayMap = make(map[string]bool)
 
 var today time.Time
 var workDay bool
 
-const holidayURL = `http://timor.tech/api/holiday/info`
-
-func WorkDay995() bool {
-	refreshToday()
-	return workDay
-}
-
-func WorkDayWeek() bool {
-	refreshToday()
-
-	now.WeekStartDay = time.Monday
-	// 第一个大周的第一天
-	firstBigWeekDay, _ := time.ParseInLocation("2006-01-02", *FirstBigWeekDay, time.Now().Location())
-	firstBigWeekDay = now.New(firstBigWeekDay).BeginningOfWeek()
-
-	today = time.Now()
-	// 距离第一个大周的第一天的天数
-	days := int(today.Sub(firstBigWeekDay).Hours() / 24)
-	isSmall := days/7%2 == 1
-	// 当前是小周，且今天是周六
-	if isSmall && today.Weekday() == time.Saturday {
-		workDay = true
+func InitMap() {
+	filename := fmt.Sprintf("/opt/ban/data/%d.special", time.Now().Year())
+	if len(DayMap) > 0 && DayFilename == filename {
+		return
 	}
-	return workDay
+	if _, err := os.Stat(filename); err != nil {
+		log.Printf("year special file no exist err: %v\n", err)
+		return
+	}
+	DayFilename = filename
+
+	content, err := ioutil.ReadFile(DayFilename)
+	if err != nil {
+		log.Printf("read year special file err: %v\n", err)
+		return
+	}
+	var days []Day
+	if err := json.Unmarshal(content, &days); err != nil {
+		log.Printf("json unmarshal year special file err: %v\n", err)
+		return
+	}
+	for _, d := range days {
+		DayMap[d.DayStr] = d.Workday
+	}
+	return
 }
 
 func refreshToday() {
 	if now.BeginningOfDay().Equal(today) {
 		return
 	}
-
-	temp, err := isWorkDay(holidayURL)
-	if err == nil {
-		today = now.BeginningOfDay()
-		workDay = temp
-		return
-	}
-	// 查询失败时，周一~周五工作日，周六周日休息日
+	today = now.BeginningOfDay()
+	// 周一~周五工作日，周六周日休息日
 	switch time.Now().Weekday() {
 	case time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday:
 		workDay = true
 	default:
 		workDay = false
 	}
-	today = now.BeginningOfDay()
+	tempWorkday, exists := DayMap[today.Format("2006-01-02")]
+	if exists {
+		workDay = tempWorkday
+	}
 }
 
-// 在线查询今天是否是工作日
-// api地址： http://timor.tech/api/holiday/
-func isWorkDay(url string) (bool, error) {
-	resp, err := httplib.Get(url).DoRequest()
-	if err != nil {
-		return false, errors.Wrap(err, "send http get request error.")
-	}
-	bytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return false, errors.Wrap(err, "get http response error.")
-	}
-
-	// "type": enum(0, 1, 2, 3), // 节假日类型，分别表示 工作日、周末、节日、调休。
-	var workDay bool
-	if value := gjson.Get(string(bytes), `type.type`).Array(); len(value) > 0 {
-		workDay = value[0].Int() == 0 || value[0].Int() == 3
-	}
-	return workDay, nil
+func WorkDay() bool {
+	InitMap()
+	refreshToday()
+	return workDay
 }
